@@ -169,4 +169,129 @@ class AgeImputer(BaseEstimator, TransformerMixin):
         X['Age'] = imputer.fit_transform(X[['Age']])
         return X
 ```
+### **🔹 Remaining Code Explanation**  
 
+The remaining code covers **feature encoding, data transformation, model training using Random Forest, and evaluation**. Here's a breakdown of each section:
+
+---
+
+## **7️⃣ Feature Encoding (One-Hot Encoding)**
+```python
+from sklearn.preprocessing import OneHotEncoder
+
+class FeatureEncoder(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        encoder = OneHotEncoder()
+
+        matrix = encoder.fit_transform(X[['Embarked']]).toarray()
+        column_names = ["C", "S", "Q", "N"]
+        for i in range(len(matrix.T)):
+            X[column_names[i]] = matrix.T[i]
+
+        matrix = encoder.fit_transform(X[['Sex']]).toarray()
+        column_names = ["Female", "Male"]
+        for i in range(len(matrix.T)):
+            X[column_names[i]] = matrix.T[i]
+
+        return X
+```
+### ✅ **What this does:**
+- Converts **categorical variables (`Embarked`, `Sex`)** into numerical values using **One-Hot Encoding**.
+- Adds new columns (`C`, `S`, `Q`, `N` for `Embarked`; `Female`, `Male` for `Sex`).
+- Allows models to understand categorical data numerically.
+
+---
+
+## **8️⃣ Feature Dropping**
+```python
+class FeatureDropper(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return X.drop(["Embarked", "Name", "Ticket", "Cabin", "Sex", "N"], axis=1, errors="ignore")
+```
+### ✅ **What this does:**
+- Drops unnecessary columns (`Name`, `Ticket`, `Cabin`, `Sex`, `Embarked`).
+- These columns **aren't useful for predictions** or have too many missing values.
+
+---
+
+## **9️⃣ Creating a Data Processing Pipeline**
+```python
+from sklearn.pipeline import Pipeline
+
+pipeline = Pipeline([
+    ("ageimputer", AgeImputer()),
+    ("featureencoder", FeatureEncoder()),
+    ("featuredropper", FeatureDropper())
+])
+
+strat_train_set = pipeline.fit_transform(strat_train_set)
+strat_train_set.info()
+```
+### ✅ **What this does:**
+- Creates a **Pipeline** to:
+  1. **Fill missing `Age` values** (via `AgeImputer`).
+  2. **Encode categorical variables** (`FeatureEncoder`).
+  3. **Drop unnecessary columns** (`FeatureDropper`).
+- **Ensures consistency** by applying these transformations **automatically** to train/test data.
+
+---
+
+## **🔟 Scaling Data**
+```python
+from sklearn.preprocessing import StandardScaler
+
+X = strat_train_set.drop(['Survived'], axis=1)
+y = strat_train_set['Survived']
+
+scaler = StandardScaler()
+X_data = scaler.fit_transform(X)
+y_data = y.to_numpy()
+```
+### ✅ **What this does:**
+- Separates **features (`X`)** and **target (`y` - survival outcome)**.
+- Applies **Standard Scaling** to normalize numeric values.
+
+---
+
+## **1️⃣1️⃣ Training a Random Forest Model with Hyperparameter Tuning**
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+
+clf = RandomForestClassifier()
+
+param_grid = [
+    {"n_estimators": [10, 100, 200, 500], "max_depth": [None, 5, 10], "min_samples_split": [2, 3, 4]}
+]
+
+grid_search = GridSearchCV(clf, param_grid, cv=3, scoring="accuracy", return_train_score=True)
+grid_search.fit(X_data, y_data)
+
+final_clf = grid_search.best_estimator_
+```
+### ✅ **What this does:**
+- Uses **Random Forest Classifier** for prediction.
+- **Performs Grid Search** (`GridSearchCV`) to find the **best hyperparameters**:
+  - `n_estimators`: Number of decision trees in the forest.
+  - `max_depth`: Depth of each tree.
+  - `min_samples_split`: Minimum samples needed to split a node.
+- **Selects the best model (`final_clf`)** based on accuracy.
+
+---
+
+## **1️⃣2️⃣ Testing the Model on Test Data**
+```python
+strat_test_set = pipeline.fit_transform(strat_test_set)
+
+X_test = strat_test_set.drop(['Survived'], axis=1)
+y_test = strat_test_set['Survived']
+
+scaler = StandardScaler()
+X_data_test = scaler.transform(X_test)
+```
